@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Void Guitar mark</title>
+  <defs>
+    <radialGradient id="g" cx="35%" cy="30%" r="80%">
+      <stop offset="0" stop-color="#c6ff4a" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#0c1007"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="29" fill="url(#g)" stroke="#c6ff4a" stroke-opacity=".76" stroke-width="1.6"/>
+  <path d="M13 22.5 51 32 13 41.5M13 26.5 51 32 13 37.5" fill="none" stroke="#eaffb8" stroke-linecap="round" stroke-width="1.35"/>
+  <circle cx="13" cy="22.5" r="1.3" fill="#c6ff4a"/>
+  <circle cx="13" cy="41.5" r="1.3" fill="#c6ff4a"/>
+</svg>
+
