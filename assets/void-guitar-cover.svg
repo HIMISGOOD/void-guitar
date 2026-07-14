@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Void Guitar</title>
+  <desc id="desc">An abstract dark green and rose graphic for a gesture-controlled browser guitar.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a0d09"/>
+      <stop offset=".5" stop-color="#0e1114"/>
+      <stop offset="1" stop-color="#171014"/>
+    </linearGradient>
+    <radialGradient id="lime" cx="0" cy="0" r="1" gradientTransform="translate(216 136) rotate(37) scale(560 440)">
+      <stop offset="0" stop-color="#c6ff4a" stop-opacity=".24"/>
+      <stop offset="1" stop-color="#c6ff4a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rose" cx="0" cy="0" r="1" gradientTransform="translate(1070 380) rotate(52) scale(420 390)">
+      <stop offset="0" stop-color="#ff6f91" stop-opacity=".17"/>
+      <stop offset="1" stop-color="#ff6f91" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#background)"/>
+  <rect width="1200" height="630" fill="url(#lime)"/>
+  <rect width="1200" height="630" fill="url(#rose)"/>
+
+  <g opacity=".36" fill="none" stroke="#ffffff" stroke-opacity=".10">
+    <path d="M0 88H1200M0 170H1200M0 252H1200M0 334H1200M0 416H1200M0 498H1200"/>
+    <path d="M96 0V630M238 0V630M380 0V630M522 0V630M664 0V630M806 0V630M948 0V630M1090 0V630"/>
+  </g>
+
+  <g transform="translate(82 86)">
+    <circle cx="28" cy="28" r="27" fill="#c6ff4a" fill-opacity=".10" stroke="#c6ff4a" stroke-opacity=".72"/>
+    <path d="M13 19.5 44 28 13 36.5M13 23 44 28 13 33" fill="none" stroke="#dfff93" stroke-linecap="round" stroke-width="1.25"/>
+    <text x="74" y="18" fill="#c6ff4a" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" letter-spacing="4">VOID GUITAR</text>
+    <text x="74" y="42" fill="#9da4a9" font-family="Arial, Helvetica, sans-serif" font-size="11" letter-spacing="2.3">GESTURE-CONTROLLED BROWSER INSTRUMENT</text>
+  </g>
+
+  <g transform="translate(82 232)">
+    <text x="0" y="0" fill="#f7f8f5" font-family="Arial, Helvetica, sans-serif" font-size="75" font-weight="700" letter-spacing="-3">Air is the</text>
+    <text x="0" y="81" fill="#c6ff4a" font-family="Arial, Helvetica, sans-serif" font-size="75" font-weight="700" letter-spacing="-3">instrument.</text>
+    <text x="4" y="132" fill="#a8adb1" font-family="Arial, Helvetica, sans-serif" font-size="18" letter-spacing=".35">CHORDS · FINGERSTYLE · STRUM · MUTE · FIVE GUITAR VOICES</text>
+  </g>
+
+  <g transform="translate(790 112)">
+    <rect width="310" height="350" rx="28" fill="#0b0e10" fill-opacity=".58" stroke="#ffffff" stroke-opacity=".15"/>
+    <rect x="22" y="22" width="266" height="190" rx="20" fill="#050607" fill-opacity=".50" stroke="#ffffff" stroke-opacity=".08"/>
+    <circle cx="155" cy="74" r="40" fill="#10160d" stroke="#c6ff4a" stroke-opacity=".45"/>
+    <text x="155" y="63" text-anchor="middle" fill="#9ca39d" font-family="Arial, Helvetica, sans-serif" font-size="8.5" letter-spacing="1.5">CURRENT CHORD</text>
+    <text x="155" y="107" text-anchor="middle" fill="#f4f6f0" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">A</text>
+    <g transform="translate(46 137)" stroke-linecap="round">
+      <path d="M0 9H218" stroke="#c6ff4a" stroke-opacity=".37"/>
+      <path d="M0 25H218" stroke="#eaffb8" stroke-opacity=".52"/>
+      <path d="M0 41H218" stroke="#c6ff4a" stroke-opacity=".62"/>
+      <path d="M0 57H218" stroke="#ff6f91" stroke-opacity=".45"/>
+      <path d="M0 73H218" stroke="#c6ff4a" stroke-opacity=".32"/>
+      <path d="M0 89H218" stroke="#ff6f91" stroke-opacity=".25"/>
+    </g>
+    <g transform="translate(22 237)">
+      <rect width="80" height="77" rx="13" fill="#c6ff4a" fill-opacity=".13" stroke="#c6ff4a" stroke-opacity=".68"/>
+      <text x="40" y="27" text-anchor="middle" fill="#eaffb8" font-family="Arial, Helvetica, sans-serif" font-size="8" letter-spacing="1.3">BASS</text>
+      <text x="40" y="57" text-anchor="middle" fill="#c6ff4a" font-family="Arial, Helvetica, sans-serif" font-size="26">1</text>
+      <rect x="93" width="80" height="77" rx="13" fill="#ffffff" fill-opacity=".045" stroke="#ffffff" stroke-opacity=".12"/>
+      <text x="133" y="27" text-anchor="middle" fill="#a8adb1" font-family="Arial, Helvetica, sans-serif" font-size="8" letter-spacing="1.3">STRUM</text>
+      <text x="133" y="57" text-anchor="middle" fill="#f5f6f7" font-family="Arial, Helvetica, sans-serif" font-size="27">↓</text>
+      <rect x="186" width="80" height="77" rx="13" fill="#ffffff" fill-opacity=".045" stroke="#ffffff" stroke-opacity=".12"/>
+      <text x="226" y="27" text-anchor="middle" fill="#a8adb1" font-family="Arial, Helvetica, sans-serif" font-size="8" letter-spacing="1.3">MUTE</text>
+      <text x="226" y="57" text-anchor="middle" fill="#f5f6f7" font-family="Arial, Helvetica, sans-serif" font-size="28">×</text>
+    </g>
+  </g>
+
+  <g transform="translate(592 465)" fill="none" stroke-linecap="round">
+    <path d="M-80 47C22-37 131 93 234 2S441-50 554 45" stroke="#c6ff4a" stroke-opacity=".26" stroke-width="1.2"/>
+    <path d="M-80 65C22-19 131 111 234 20S441-32 554 63" stroke="#eaffb8" stroke-opacity=".34" stroke-width="1.2"/>
+    <path d="M-80 83C22-1 131 129 234 38S441-14 554 81" stroke="#c6ff4a" stroke-opacity=".48" stroke-width="1.4"/>
+    <path d="M-80 101C22 17 131 147 234 56S441 4 554 99" stroke="#ff6f91" stroke-opacity=".32" stroke-width="1.2"/>
+    <path d="M-80 119C22 35 131 165 234 74S441 22 554 117" stroke="#c6ff4a" stroke-opacity=".25" stroke-width="1.2"/>
+    <circle cx="234" cy="38" r="4" fill="#c6ff4a" filter="url(#glow)"/>
+  </g>
+
+  <circle cx="696" cy="527" r="42" fill="#c6ff4a" fill-opacity=".10" filter="url(#soft)"/>
+  <text x="83" y="579" fill="#c4c8c5" font-family="Arial, Helvetica, sans-serif" font-size="12" letter-spacing="2.25">PLAY MUSIC WITH MOTION</text>
+</svg>
