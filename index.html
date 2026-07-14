@@ -1,0 +1,2699 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#08090b">
+  <meta name="description" content="A gesture-controlled guitar for the browser. Change chords with one hand; pluck, strum, mute, and play fingerstyle with the other.">
+  <meta name="application-name" content="Void Guitar">
+  <meta name="keywords" content="gesture recognition, web audio, virtual guitar, MediaPipe, creative coding">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Void Guitar — Play guitar in the air">
+  <meta property="og:description" content="A gesture-controlled guitar for the browser: chords, fingerstyle, strumming, mute gestures, and five guitar tones.">
+  <meta property="og:image" content="https://himisgood.github.io/void-guitar/assets/void-guitar-cover.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Void Guitar — Play guitar in the air">
+  <meta name="twitter:description" content="A gesture-controlled guitar for the browser.">
+  <meta name="twitter:image" content="https://himisgood.github.io/void-guitar/assets/void-guitar-cover.png">
+  <link rel="icon" href="./assets/void-guitar-mark.svg" type="image/svg+xml">
+  <title>Void Guitar — Play Guitar in the Air</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #08090b;
+      --panel: rgba(20, 22, 25, .88);
+      --panel-solid: #141619;
+      --line: rgba(255, 255, 255, .12);
+      --text: #f5f6f7;
+      --muted: #9a9da3;
+      --acid: #c6ff4a;
+      --acid-soft: rgba(198, 255, 74, .15);
+      --rose: #ff6f91;
+      --rose-soft: rgba(255, 111, 145, .16);
+      --danger: #ff7b72;
+      --radius: 22px;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { background: var(--bg); }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% -5%, rgba(198, 255, 74, .11), transparent 30rem),
+        radial-gradient(circle at 90% 20%, rgba(255, 111, 145, .09), transparent 28rem),
+        var(--bg);
+    }
+
+    button, input { font: inherit; }
+
+    button {
+      color: inherit;
+      cursor: pointer;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    summary:focus-visible {
+      outline: 3px solid rgba(198, 255, 74, .5);
+      outline-offset: 3px;
+    }
+
+    .app {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 24px 0 40px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      position: relative;
+      width: 38px;
+      height: 38px;
+      flex: 0 0 auto;
+      border: 1px solid rgba(198, 255, 74, .45);
+      border-radius: 50%;
+      background: rgba(198, 255, 74, .08);
+      box-shadow: inset 0 0 20px rgba(198, 255, 74, .08);
+    }
+
+    .brand-mark::before,
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      left: 7px;
+      right: 7px;
+      height: 1px;
+      background: var(--acid);
+      transform-origin: center;
+    }
+
+    .brand-mark::before { top: 14px; transform: rotate(14deg); }
+    .brand-mark::after { top: 21px; transform: rotate(-14deg); }
+
+    .brand-copy { min-width: 0; }
+
+    .brand-name {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 650;
+      letter-spacing: .01em;
+    }
+
+    .brand-subtitle {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font: 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+    }
+
+    .camera-button,
+    .primary-button,
+    .secondary-button,
+    .icon-button {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .06);
+      transition: transform .16s ease, border-color .16s ease, background .16s ease;
+    }
+
+    .camera-button:hover,
+    .secondary-button:hover,
+    .icon-button:hover {
+      border-color: rgba(255, 255, 255, .28);
+      background: rgba(255, 255, 255, .1);
+    }
+
+    .camera-button:active,
+    .primary-button:active,
+    .secondary-button:active,
+    .icon-button:active { transform: scale(.98); }
+
+    .camera-button {
+      padding: 9px 14px;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    .camera-button[data-active="true"] {
+      border-color: rgba(255, 111, 145, .38);
+      background: var(--rose-soft);
+    }
+
+    .stage {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      min-height: 360px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(115deg, rgba(198, 255, 74, .08), transparent 34%),
+        linear-gradient(300deg, rgba(255, 111, 145, .08), transparent 34%),
+        #101216;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .34);
+      isolation: isolate;
+    }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background:
+        linear-gradient(to bottom, rgba(6, 7, 9, .28), transparent 24%, transparent 62%, rgba(6, 7, 9, .68)),
+        repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0, rgba(255,255,255,.012) 1px, transparent 1px, transparent 4px);
+    }
+
+    #camera,
+    #skeleton {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #camera {
+      z-index: 0;
+      object-fit: cover;
+      transform: scaleX(-1);
+      opacity: 0;
+      transition: opacity .35s ease;
+    }
+
+    #camera.is-live { opacity: .76; }
+
+    #skeleton {
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    .ambient-orb {
+      position: absolute;
+      z-index: 0;
+      width: 42%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      filter: blur(70px);
+      opacity: .12;
+      pointer-events: none;
+    }
+
+    .ambient-orb.one { left: -12%; top: -25%; background: var(--acid); }
+    .ambient-orb.two { right: -12%; bottom: -35%; background: var(--rose); }
+
+    .stage-hud {
+      position: absolute;
+      inset: 16px 16px auto;
+      z-index: 6;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: start;
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .hand-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      max-width: 100%;
+      min-height: 31px;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: #d8dadd;
+      background: rgba(8, 9, 11, .62);
+      backdrop-filter: blur(12px);
+      font-size: 12px;
+    }
+
+    .hand-status.right { justify-self: end; }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: #686c73;
+      box-shadow: 0 0 0 4px rgba(104, 108, 115, .12);
+    }
+
+    .hand-status[data-seen="true"] .status-dot {
+      background: var(--acid);
+      box-shadow: 0 0 0 4px rgba(198, 255, 74, .12), 0 0 16px rgba(198, 255, 74, .5);
+    }
+
+    .hand-status.right[data-seen="true"] .status-dot {
+      background: var(--rose);
+      box-shadow: 0 0 0 4px rgba(255, 111, 145, .12), 0 0 16px rgba(255, 111, 145, .5);
+    }
+
+    .current-chord {
+      display: grid;
+      min-width: 112px;
+      padding: 8px 16px 10px;
+      border: 1px solid rgba(198, 255, 74, .28);
+      border-radius: 18px;
+      background: rgba(8, 9, 11, .7);
+      box-shadow: inset 0 0 20px rgba(198, 255, 74, .06);
+      backdrop-filter: blur(15px);
+      text-align: center;
+    }
+
+    .current-chord small {
+      color: var(--muted);
+      font: 9px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .16em;
+    }
+
+    .current-chord strong {
+      margin-top: 1px;
+      font-size: clamp(28px, 4vw, 48px);
+      line-height: 1;
+      letter-spacing: -.05em;
+      text-shadow: 0 0 24px rgba(198, 255, 74, .2);
+    }
+
+    .current-chord.is-changing { animation: chord-pop .28s ease; }
+
+    @keyframes chord-pop {
+      45% { transform: scale(1.08); border-color: var(--acid); }
+    }
+
+    .strings-field {
+      position: absolute;
+      z-index: 5;
+      left: 14%;
+      right: 14%;
+      top: 54%;
+      height: 16%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      pointer-events: none;
+      filter: drop-shadow(0 0 10px rgba(255,255,255,.08));
+    }
+
+    .strings-field::before {
+      content: "扫弦区";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      padding: 4px 8px;
+      border-radius: 99px;
+      color: rgba(255, 255, 255, .46);
+      background: rgba(8, 9, 11, .4);
+      font: 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .16em;
+      transform: translate(-50%, -50%);
+      text-transform: uppercase;
+    }
+
+    .string {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.28) 8%, rgba(255,255,255,.78) 50%, rgba(255,255,255,.28) 92%, transparent);
+      transform-origin: center;
+    }
+
+    .string:nth-child(1), .string:nth-child(6) { opacity: .45; }
+    .string:nth-child(2), .string:nth-child(5) { opacity: .62; }
+
+    .strings-field.hit-down .string { animation: string-wave-down .46s ease-out; }
+    .strings-field.hit-up .string { animation: string-wave-up .46s ease-out; }
+    .strings-field .string.is-plucked { animation: single-string-pluck .48s ease-out; }
+    .strings-field .string:nth-child(2) { animation-delay: 12ms; }
+    .strings-field .string:nth-child(3) { animation-delay: 24ms; }
+    .strings-field .string:nth-child(4) { animation-delay: 36ms; }
+    .strings-field .string:nth-child(5) { animation-delay: 48ms; }
+    .strings-field .string:nth-child(6) { animation-delay: 60ms; }
+
+    @keyframes string-wave-down {
+      0% { transform: translateY(-1px) scaleX(1); }
+      22% { transform: translateY(6px) scaleX(.97); background-color: var(--acid); }
+      48% { transform: translateY(-4px) scaleX(1.01); }
+      72% { transform: translateY(2px); }
+      100% { transform: translateY(0); }
+    }
+
+    @keyframes string-wave-up {
+      0% { transform: translateY(1px) scaleX(1); }
+      22% { transform: translateY(-6px) scaleX(.97); background-color: var(--rose); }
+      48% { transform: translateY(4px) scaleX(1.01); }
+      72% { transform: translateY(-2px); }
+      100% { transform: translateY(0); }
+    }
+
+    @keyframes single-string-pluck {
+      0% { transform: translateY(0) scaleX(1); }
+      22% { transform: translateY(-7px) scaleX(.96); background-color: var(--acid); box-shadow: 0 0 16px rgba(198,255,74,.55); }
+      48% { transform: translateY(5px) scaleX(1.01); }
+      72% { transform: translateY(-2px); }
+      100% { transform: translateY(0); box-shadow: none; }
+    }
+
+    .motion-guide {
+      position: absolute;
+      z-index: 6;
+      right: 4.5%;
+      top: 45%;
+      display: grid;
+      justify-items: center;
+      gap: 4px;
+      color: rgba(255,255,255,.62);
+      font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .08em;
+      pointer-events: none;
+    }
+
+    .motion-arrow {
+      font-size: 27px;
+      line-height: 1;
+      transition: color .2s ease, transform .2s ease;
+    }
+
+    .motion-guide[data-direction="down"] .motion-arrow { color: var(--acid); animation: arrow-down 1s ease-in-out infinite; }
+    .motion-guide[data-direction="up"] .motion-arrow { color: var(--rose); animation: arrow-up 1s ease-in-out infinite; }
+    .motion-guide[data-direction="both"] .motion-arrow { color: #ffffff; animation: arrow-both 1.15s ease-in-out infinite; }
+
+    @keyframes arrow-down { 50% { transform: translateY(6px); } }
+    @keyframes arrow-up { 50% { transform: translateY(-6px); } }
+    @keyframes arrow-both { 35% { transform: translateY(4px); } 70% { transform: translateY(-4px); } }
+
+    .debug-panel {
+      position: absolute;
+      z-index: 7;
+      left: 16px;
+      bottom: 16px;
+      display: none;
+      width: min(260px, calc(100% - 32px));
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(8, 9, 11, .78);
+      backdrop-filter: blur(12px);
+      font: 10px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .debug-panel.is-visible { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; }
+    .debug-panel span:nth-child(odd) { color: var(--muted); }
+    .debug-panel span:nth-child(even) { text-align: right; }
+
+    .welcome {
+      position: absolute;
+      inset: 0;
+      z-index: 12;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      background: rgba(8, 9, 11, .52);
+      backdrop-filter: blur(16px);
+      transition: opacity .3s ease, visibility .3s ease;
+    }
+
+    .welcome.is-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+    .welcome-card {
+      width: min(520px, 100%);
+      text-align: center;
+    }
+
+    .welcome-kicker {
+      margin: 0 0 13px;
+      color: var(--acid);
+      font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+    }
+
+    .welcome h1 {
+      margin: 0;
+      font-size: clamp(34px, 6vw, 68px);
+      line-height: .98;
+      letter-spacing: -.06em;
+    }
+
+    .welcome p {
+      max-width: 430px;
+      margin: 17px auto 22px;
+      color: #c3c5c9;
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .welcome-actions {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .primary-button,
+    .secondary-button {
+      min-height: 43px;
+      padding: 10px 18px;
+      font-weight: 620;
+      font-size: 13px;
+    }
+
+    .primary-button {
+      border-color: var(--acid);
+      color: #101208;
+      background: var(--acid);
+      box-shadow: 0 10px 30px rgba(198, 255, 74, .16);
+    }
+
+    .primary-button:hover { background: #d4ff73; }
+    .primary-button:disabled { cursor: wait; opacity: .65; }
+
+    .secondary-button { background: rgba(255,255,255,.07); }
+
+    .welcome-note {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .control-deck {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .chords-panel,
+    .right-hand-panel,
+    .settings-panel {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+      backdrop-filter: blur(16px);
+    }
+
+    .chords-panel { padding: 12px; }
+
+    .panel-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 2px 10px;
+      color: var(--muted);
+      font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .panel-label span:last-child { letter-spacing: 0; text-transform: none; }
+
+    .chord-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+      gap: 9px;
+    }
+
+    .chord-button {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+      min-height: 58px;
+      padding: 8px 10px;
+      border: 1px solid transparent;
+      border-radius: 13px;
+      color: var(--text);
+      background: rgba(255,255,255,.045);
+      text-align: left;
+      transition: background .16s ease, border-color .16s ease, transform .16s ease;
+    }
+
+    .chord-button:hover { background: rgba(255,255,255,.085); }
+    .chord-button:active { transform: scale(.985); }
+
+    .chord-button[aria-pressed="true"] {
+      border-color: rgba(198, 255, 74, .45);
+      background: var(--acid-soft);
+    }
+
+    .gesture-icon {
+      width: 33px;
+      font-size: 24px;
+      text-align: center;
+      filter: grayscale(.2);
+    }
+
+    .chord-copy { display: grid; min-width: 0; }
+
+    .chord-copy strong { font-size: 18px; line-height: 1; }
+    .chord-copy small { margin-top: 4px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+
+    .keycap {
+      min-width: 20px;
+      padding: 3px 5px;
+      border: 1px solid var(--line);
+      border-bottom-color: rgba(255,255,255,.24);
+      border-radius: 5px;
+      color: var(--muted);
+      background: rgba(0,0,0,.16);
+      font: 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      text-align: center;
+    }
+
+    .right-hand-panel {
+      width: 246px;
+      padding: 9px;
+    }
+
+    .tone-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 9px;
+      margin: 1px 2px 8px;
+      color: var(--muted);
+      font: 9px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .tone-select {
+      width: 100%;
+      min-width: 0;
+      min-height: 31px;
+      padding: 0 26px 0 9px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      background: var(--panel-solid);
+      font: 10px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    .mode-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+      margin-bottom: 8px;
+      padding: 3px;
+      border-radius: 10px;
+      background: rgba(0,0,0,.18);
+    }
+
+    .mode-button {
+      min-height: 29px;
+      border: 0;
+      border-radius: 7px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 10px;
+    }
+
+    .mode-button[aria-pressed="true"] {
+      color: var(--text);
+      background: rgba(255,255,255,.09);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+    }
+
+    .mute-hint {
+      margin: -1px 2px 8px;
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 1.35;
+      text-align: center;
+    }
+
+    .strum-panel {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .right-hand-panel[data-mode="strum"] .strum-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .right-hand-panel[data-mode="strum"] .bass-button { display: none; }
+
+    .strum-button {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: 84px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(255,255,255,.045);
+      font-size: 28px;
+      transition: background .16s ease, border-color .16s ease, transform .16s ease;
+    }
+
+    .strum-button:hover { border-color: rgba(255,255,255,.26); background: rgba(255,255,255,.085); }
+    .strum-button:active { transform: scale(.97); }
+    .strum-button.down:hover { color: var(--acid); }
+    .strum-button.up:hover { color: var(--rose); }
+    .strum-button.bass-button { color: var(--acid); font-size: 21px; }
+
+    .strum-button small {
+      position: absolute;
+      bottom: 7px;
+      color: var(--muted);
+      font: 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .settings-panel {
+      margin-top: 14px;
+      overflow: hidden;
+    }
+
+    .song-sheet {
+      margin-top: 14px;
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+      backdrop-filter: blur(16px);
+    }
+
+    .song-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px 14px;
+      margin-bottom: 12px;
+    }
+
+    .song-head strong { font-size: 14px; font-weight: 650; }
+
+    .song-head span {
+      color: var(--muted);
+      font: 10px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .04em;
+    }
+
+    .progression-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .song-bar {
+      min-height: 38px;
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 9px;
+      color: #dfe1e4;
+      background: rgba(255,255,255,.035);
+      font: 600 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      transition: border-color .15s ease, background .15s ease, transform .15s ease;
+    }
+
+    .song-bar:hover { border-color: rgba(255,255,255,.22); background: rgba(255,255,255,.07); }
+    .song-bar:active { transform: scale(.98); }
+    .song-bar[data-chord-active="true"] { border-color: rgba(198,255,74,.34); background: rgba(198,255,74,.1); }
+
+    .strum-pattern {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      margin-top: 11px;
+      padding: 10px 12px;
+      border-radius: 11px;
+      background: rgba(255,255,255,.035);
+    }
+
+    .strum-pattern > span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .pattern-notes {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 22px;
+      font: 600 18px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .1em;
+    }
+
+    .pattern-notes b { font-weight: 600; }
+    .pattern-notes b:first-child { color: var(--acid); }
+
+    .strum-pattern .pattern-notes b { font-size: 13px; }
+
+    .settings-panel summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 46px;
+      padding: 0 16px;
+      cursor: pointer;
+      color: #d6d8db;
+      font-size: 12px;
+      list-style: none;
+    }
+
+    .settings-panel summary::-webkit-details-marker { display: none; }
+    .settings-panel summary::after { content: "+"; color: var(--muted); font-size: 18px; }
+    .settings-panel[open] summary::after { content: "−"; }
+
+    .settings-content {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) repeat(3, auto);
+      align-items: center;
+      gap: 18px;
+      padding: 0 16px 15px;
+      border-top: 1px solid rgba(255,255,255,.07);
+      padding-top: 14px;
+    }
+
+    .performance-config {
+      grid-column: 1 / -1;
+      display: grid;
+      gap: 12px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,.07);
+    }
+
+    .config-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px 14px;
+    }
+
+    .config-heading strong { font-size: 12px; font-weight: 650; }
+    .config-heading span { color: var(--muted); font-size: 10px; }
+
+    .config-controls {
+      display: grid;
+      grid-template-columns: minmax(190px, 1fr) minmax(250px, 1.3fr) auto;
+      align-items: center;
+      gap: 12px 18px;
+    }
+
+    .sound-controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(210px, 1fr));
+      align-items: center;
+      gap: 12px 18px;
+      padding: 10px 12px;
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 11px;
+      background: rgba(255,255,255,.025);
+    }
+
+    .config-range {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 9px;
+      color: #c7c9cd;
+      font-size: 11px;
+    }
+
+    .mapping-grid { display: grid; gap: 7px; }
+
+    .mapping-row {
+      display: grid;
+      grid-template-columns: 26px minmax(145px, 1fr) minmax(110px, .72fr);
+      align-items: center;
+      gap: 8px;
+    }
+
+    .slot-number {
+      display: grid;
+      place-items: center;
+      width: 25px;
+      height: 25px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--muted);
+      font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .config-select {
+      width: 100%;
+      min-height: 34px;
+      padding: 0 30px 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: var(--text);
+      background: var(--panel-solid);
+      font-size: 11px;
+    }
+
+    .range-wrap { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+    .range-wrap label, .toggle { color: #c7c9cd; font-size: 11px; }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--acid);
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .toggle input { accent-color: var(--acid); }
+
+    .status-line {
+      min-height: 22px;
+      margin: 10px 3px 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .status-line[data-tone="error"] { color: var(--danger); }
+    .status-line[data-tone="ok"] { color: var(--acid); }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: max(22px, env(safe-area-inset-bottom));
+      z-index: 30;
+      max-width: min(420px, calc(100% - 28px));
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: #e8e9eb;
+      background: rgba(18,20,23,.94);
+      box-shadow: 0 14px 44px rgba(0,0,0,.42);
+      font-size: 12px;
+      opacity: 0;
+      transform: translate(-50%, 12px);
+      transition: opacity .2s ease, transform .2s ease;
+      pointer-events: none;
+    }
+
+    .toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 760px) {
+      .app { width: min(100% - 18px, 720px); padding-top: 13px; }
+      .stage { width: 100%; height: clamp(390px, 54vh, 520px); min-height: 0; aspect-ratio: auto; }
+      .stage-hud { grid-template-columns: 1fr 1fr; }
+      .current-chord { grid-column: 1 / -1; grid-row: 1; justify-self: center; }
+      .hand-status { grid-row: 2; }
+      .strings-field { left: 8%; right: 8%; top: 57%; }
+      .motion-guide { right: 2.5%; }
+      .control-deck { grid-template-columns: 1fr; }
+      .chord-grid { grid-template-columns: repeat(2, 1fr); }
+      .right-hand-panel { width: auto; }
+      .strum-panel { grid-template-columns: repeat(3, 1fr); }
+      .strum-button { min-height: 58px; }
+      .pattern-notes { gap: 14px; }
+      .settings-content { grid-template-columns: 1fr 1fr; }
+      .range-wrap { grid-column: 1 / -1; }
+      .config-controls { grid-template-columns: 1fr; }
+      .sound-controls { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 440px) {
+      .brand-subtitle { display: none; }
+      .camera-button { padding-inline: 11px; }
+      .stage { height: clamp(390px, 54vh, 460px); }
+      .welcome { padding: 20px; }
+      .welcome h1 { font-size: 42px; }
+      .welcome p { font-size: 13px; }
+      .hand-status { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .settings-content { grid-template-columns: 1fr; }
+      .range-wrap { grid-column: auto; }
+      .mapping-row { grid-template-columns: 25px 1fr; }
+      .mapping-row .chord-select { grid-column: 2; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand" aria-label="虚空吉他">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div class="brand-copy">
+          <p class="brand-name">虚空吉他</p>
+          <p class="brand-subtitle">Void Guitar / Prototype 01</p>
+        </div>
+      </div>
+      <button class="camera-button" id="cameraAction" type="button" data-active="false">开启摄像头</button>
+    </header>
+
+    <section class="stage" id="stage" aria-label="演奏区域">
+      <span class="ambient-orb one"></span>
+      <span class="ambient-orb two"></span>
+      <video id="camera" playsinline muted></video>
+      <canvas id="skeleton" aria-hidden="true"></canvas>
+
+      <div class="stage-hud">
+        <div class="hand-status" id="leftStatus" data-seen="false">
+          <span class="status-dot"></span>
+          <span id="leftStatusText">左手：等待识别</span>
+        </div>
+
+        <div class="current-chord" id="currentChordCard" aria-live="polite">
+          <small>CURRENT CHORD</small>
+          <strong id="currentChord">A</strong>
+        </div>
+
+        <div class="hand-status right" id="rightStatus" data-seen="false">
+          <span class="status-dot"></span>
+          <span id="rightStatusText">右手：等待扫弦</span>
+        </div>
+      </div>
+
+      <div class="strings-field" id="stringsField" aria-hidden="true">
+        <span class="string"></span>
+        <span class="string"></span>
+        <span class="string"></span>
+        <span class="string"></span>
+        <span class="string"></span>
+        <span class="string"></span>
+      </div>
+
+      <div class="motion-guide" id="motionGuide" data-direction="both" aria-hidden="true">
+        <span class="motion-arrow">↕</span>
+        <span id="motionLabel">捏合低音 · 自动高音</span>
+      </div>
+
+      <div class="debug-panel" id="debugPanel" aria-live="off">
+        <span>gesture</span><span id="debugGesture">—</span>
+        <span>confidence</span><span id="debugConfidence">—</span>
+        <span>velocity y</span><span id="debugVelocity">—</span>
+        <span>strum state</span><span id="debugState">SEEK</span>
+        <span>inference</span><span id="debugFps">—</span>
+      </div>
+
+      <div class="welcome" id="welcome">
+        <div class="welcome-card">
+          <p class="welcome-kicker">Turn motion into sound</p>
+          <h1>空气，就是琴弦。</h1>
+          <p>右手捏合弹交替低音，张手扫弦；握拳时可以静音回到下一次扫弦的起点。</p>
+          <div class="welcome-actions">
+            <button class="primary-button" id="startCamera" type="button">开启摄像头</button>
+            <button class="secondary-button" id="manualMode" type="button">先手动试玩</button>
+          </div>
+          <div class="welcome-note">需要允许摄像头权限 · 建议使用桌面版 Chrome</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="control-deck" aria-label="手动控制">
+      <div class="chords-panel">
+        <div class="panel-label"><span>Capo <span id="capoDisplay">2</span> / 左手和弦</span><span>手势和和弦可在设置中调整</span></div>
+        <div class="chord-grid" id="chordGrid">
+          <button class="chord-button" type="button" data-slot="0" data-chord="A" data-gesture="Closed_Fist" aria-pressed="true">
+            <span class="gesture-icon" aria-hidden="true">✊</span>
+            <span class="chord-copy"><strong>A</strong><small>握拳</small></span>
+            <span class="keycap">1</span>
+          </button>
+          <button class="chord-button" type="button" data-slot="1" data-chord="D" data-gesture="Open_Palm" aria-pressed="false">
+            <span class="gesture-icon" aria-hidden="true">✋</span>
+            <span class="chord-copy"><strong>D</strong><small>张开手掌</small></span>
+            <span class="keycap">2</span>
+          </button>
+          <button class="chord-button" type="button" data-slot="2" data-chord="E7" data-gesture="Victory" aria-pressed="false">
+            <span class="gesture-icon" aria-hidden="true">✌️</span>
+            <span class="chord-copy"><strong>E7</strong><small>剪刀手</small></span>
+            <span class="keycap">3</span>
+          </button>
+          <button class="chord-button" type="button" data-slot="3" data-chord="Em" data-gesture="Pointing_Up" aria-pressed="false">
+            <span class="gesture-icon" aria-hidden="true">☝️</span>
+            <span class="chord-copy"><strong>Em</strong><small>食指向上</small></span>
+            <span class="keycap">4</span>
+          </button>
+          <button class="chord-button" type="button" data-slot="4" data-chord="G" data-gesture="Thumb_Up" aria-pressed="false">
+            <span class="gesture-icon" aria-hidden="true">👍</span>
+            <span class="chord-copy"><strong>G</strong><small>拇指向上</small></span>
+            <span class="keycap">5</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="right-hand-panel" id="rightHandPanel" data-mode="alternate">
+        <label class="tone-row" for="tonePreset">
+          <span>音色</span>
+          <select class="tone-select" id="tonePreset" aria-label="吉他音色"></select>
+        </label>
+        <div class="mode-switch" role="group" aria-label="右手演奏模式">
+          <button class="mode-button" type="button" data-play-mode="alternate" aria-pressed="true">交替低音</button>
+          <button class="mode-button" type="button" data-play-mode="strum" aria-pressed="false">纯扫弦</button>
+        </div>
+        <div class="mute-hint">✊ 握拳回位不发声 · 张开后重新扫</div>
+        <div class="strum-panel" aria-label="手动右手演奏">
+          <button class="strum-button bass-button" id="pluckBass" type="button" aria-label="弹下一根交替低音">低音 <span id="nextBassNumber">1</span><small>Q</small></button>
+          <button class="strum-button down" id="strumDown" type="button" aria-label="向下刷弦">↓<small>SPACE / ↓</small></button>
+          <button class="strum-button up" id="strumUp" type="button" aria-label="向上刷弦">↑<small>↑</small></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="song-sheet" aria-label="歌曲和弦参考">
+      <div class="song-head">
+        <strong>乡村三和弦循环</strong>
+        <span>点击任一小节也可以手动切换和弦</span>
+      </div>
+      <div class="progression-grid" id="progressionGrid">
+        <button class="song-bar" type="button" data-chord="A" data-chord-active="true">A</button>
+        <button class="song-bar" type="button" data-chord="A" data-chord-active="true">A</button>
+        <button class="song-bar" type="button" data-chord="D" data-chord-active="false">D</button>
+        <button class="song-bar" type="button" data-chord="A" data-chord-active="true">A</button>
+        <button class="song-bar" type="button" data-chord="A" data-chord-active="true">A</button>
+        <button class="song-bar" type="button" data-chord="A" data-chord-active="true">A</button>
+        <button class="song-bar" type="button" data-chord="E7" data-chord-active="false">E7</button>
+        <button class="song-bar" type="button" data-chord="E7" data-chord-active="false">E7</button>
+        <button class="song-bar" type="button" data-chord="A" data-chord-active="true">A</button>
+        <button class="song-bar" type="button" data-chord="A" data-chord-active="true">A</button>
+        <button class="song-bar" type="button" data-chord="D" data-chord-active="false">D</button>
+        <button class="song-bar" type="button" data-chord="A" data-chord-active="true">A</button>
+        <button class="song-bar" type="button" data-chord="A" data-chord-active="true">A</button>
+        <button class="song-bar" type="button" data-chord="E7" data-chord-active="false">E7</button>
+        <button class="song-bar" type="button" data-chord="A" data-chord-active="true">A</button>
+        <button class="song-bar" type="button" data-chord="A" data-chord-active="true">A</button>
+      </div>
+      <div class="strum-pattern">
+        <span>自动循环</span>
+        <div class="pattern-notes" aria-label="低音一，自动高音，低音二，自动高音"><b>低音 1</b><b>高音 × 3</b><b>低音 2</b><b>高音 × 3</b></div>
+      </div>
+    </section>
+
+    <details class="settings-panel">
+      <summary>识别设置与校准</summary>
+      <div class="settings-content">
+        <div class="range-wrap">
+          <label for="sensitivity">右手动作灵敏度</label>
+          <input id="sensitivity" type="range" min="0" max="100" value="86">
+          <output id="sensitivityValue" for="sensitivity">86</output>
+        </div>
+        <label class="toggle"><input id="swapHands" type="checkbox"> 交换左右手</label>
+        <label class="toggle"><input id="showSkeleton" type="checkbox" checked> 显示手部骨架</label>
+        <label class="toggle"><input id="showDebug" type="checkbox"> 调试数据</label>
+
+        <div class="performance-config">
+          <div class="config-heading">
+            <strong>演奏配置</strong>
+            <span>更改后自动保存到当前浏览器</span>
+          </div>
+          <div class="config-controls">
+            <label class="config-range" for="capoControl">
+              <span>Capo</span>
+              <input id="capoControl" type="range" min="0" max="7" value="2">
+              <output id="capoValue" for="capoControl">2</output>
+            </label>
+            <label class="config-range" for="trebleDelay">
+              <span>高音延迟</span>
+              <input id="trebleDelay" type="range" min="80" max="500" step="10" value="180">
+              <output id="trebleDelayValue" for="trebleDelay">180 ms</output>
+            </label>
+            <label class="toggle"><input id="autoTreble" type="checkbox" checked> 低音后自动高音</label>
+          </div>
+          <div class="sound-controls" aria-label="音色微调">
+            <label class="config-range" for="toneBrightness">
+              <span>明亮度</span>
+              <input id="toneBrightness" type="range" min="0" max="100" value="58">
+              <output id="toneBrightnessValue" for="toneBrightness">58%</output>
+            </label>
+            <label class="config-range" for="toneRoom">
+              <span>空间感</span>
+              <input id="toneRoom" type="range" min="0" max="100" value="34">
+              <output id="toneRoomValue" for="toneRoom">34%</output>
+            </label>
+          </div>
+          <div class="mapping-grid" id="mappingGrid" aria-label="手势和和弦映射">
+            <div class="mapping-row" data-slot="0">
+              <span class="slot-number">1</span>
+              <select class="config-select gesture-select" aria-label="第一个手势"></select>
+              <select class="config-select chord-select" aria-label="第一个和弦"></select>
+            </div>
+            <div class="mapping-row" data-slot="1">
+              <span class="slot-number">2</span>
+              <select class="config-select gesture-select" aria-label="第二个手势"></select>
+              <select class="config-select chord-select" aria-label="第二个和弦"></select>
+            </div>
+            <div class="mapping-row" data-slot="2">
+              <span class="slot-number">3</span>
+              <select class="config-select gesture-select" aria-label="第三个手势"></select>
+              <select class="config-select chord-select" aria-label="第三个和弦"></select>
+            </div>
+            <div class="mapping-row" data-slot="3">
+              <span class="slot-number">4</span>
+              <select class="config-select gesture-select" aria-label="第四个手势"></select>
+              <select class="config-select chord-select" aria-label="第四个和弦"></select>
+            </div>
+            <div class="mapping-row" data-slot="4">
+              <span class="slot-number">5</span>
+              <select class="config-select gesture-select" aria-label="第五个手势"></select>
+              <select class="config-select chord-select" aria-label="第五个和弦"></select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <p class="status-line" id="statusLine" data-tone="neutral" aria-live="polite">✊ 握拳＝静音回位　·　张开后可连续同方向扫弦</p>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const MEDIAPIPE_VERSION = "0.10.35";
+      const WASM_ROOT = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/wasm`;
+      const MODEL_URL = "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task";
+
+      const CHORD_LIBRARY = {
+        A:  { notes: [45, 52, 57, 61, 64], bass: [45, 52], treble: [57, 61, 64] },
+        Am: { notes: [45, 52, 57, 60, 64], bass: [45, 52], treble: [57, 60, 64] },
+        B:  { notes: [47, 54, 59, 63, 66], bass: [47, 54], treble: [59, 63, 66] },
+        Bm: { notes: [47, 54, 59, 62, 66], bass: [47, 54], treble: [59, 62, 66] },
+        C:  { notes: [48, 52, 55, 60, 64], bass: [48, 52], treble: [55, 60, 64] },
+        D:  { notes: [50, 57, 62, 66], bass: [50, 57], treble: [57, 62, 66] },
+        Dm: { notes: [50, 57, 62, 65], bass: [50, 57], treble: [57, 62, 65] },
+        E:  { notes: [40, 47, 52, 56, 59, 64], bass: [40, 47], treble: [56, 59, 64] },
+        E7: { notes: [40, 47, 50, 56, 59, 64], bass: [40, 47], treble: [56, 59, 64] },
+        Em: { notes: [40, 47, 52, 55, 59, 64], bass: [40, 47], treble: [55, 59, 64] },
+        F:  { notes: [41, 48, 53, 57, 60, 65], bass: [41, 48], treble: [57, 60, 65] },
+        G:  { notes: [43, 50, 55, 59, 67], bass: [43, 50], treble: [55, 59, 67] },
+        G7: { notes: [43, 50, 55, 59, 65], bass: [43, 50], treble: [55, 59, 65] }
+      };
+
+      const GUITAR_TONES = {
+        steel: {
+          label: "明亮钢弦木吉他",
+          description: "清晰拨片起音，带木质琴箱共鸣",
+          duration: 3.2,
+          seedSmooth: 0.28,
+          seedLevel: 0.92,
+          damping: 0.99715,
+          frequencyLoss: 0.00125,
+          bodyNoise: 0.013,
+          pickPosition: 0.19,
+          pickNotch: 0.34,
+          cutoff: 7200,
+          highpass: 58,
+          body1: [108, 3.4, 1.1],
+          body2: [218, 1.8, 1.35],
+          attack: 0.0045,
+          release: 2.9,
+          transient: 0.44,
+          detune: 3.5,
+          master: 0.70,
+          wet: 0.14
+        },
+        nylon: {
+          label: "温暖尼龙古典吉他",
+          description: "起音柔和、泛音更暗，适合指弹",
+          duration: 2.85,
+          seedSmooth: 0.62,
+          seedLevel: 0.78,
+          damping: 0.9969,
+          frequencyLoss: 0.0017,
+          bodyNoise: 0.008,
+          pickPosition: 0.25,
+          pickNotch: 0.22,
+          cutoff: 4450,
+          highpass: 52,
+          body1: [96, 3.8, 0.92],
+          body2: [244, 2.4, 1.15],
+          attack: 0.010,
+          release: 2.5,
+          transient: 0.58,
+          detune: 2.3,
+          master: 0.76,
+          wet: 0.12
+        },
+        electric: {
+          label: "清音电吉他",
+          description: "延音更长，并带轻微双轨宽度",
+          duration: 4.25,
+          seedSmooth: 0.38,
+          seedLevel: 0.67,
+          damping: 0.99835,
+          frequencyLoss: 0.00062,
+          bodyNoise: 0.004,
+          pickPosition: 0.16,
+          pickNotch: 0.45,
+          cutoff: 6100,
+          highpass: 68,
+          body1: [142, 1.0, 1.3],
+          body2: [920, 1.9, 0.8],
+          attack: 0.0035,
+          release: 3.85,
+          transient: 0.38,
+          detune: 2.1,
+          master: 0.65,
+          wet: 0.09,
+          companion: "chorus"
+        },
+        jazz: {
+          label: "爵士空心电吉他",
+          description: "圆润偏暗，中频更厚",
+          duration: 3.65,
+          seedSmooth: 0.72,
+          seedLevel: 0.72,
+          damping: 0.9978,
+          frequencyLoss: 0.0009,
+          bodyNoise: 0.004,
+          pickPosition: 0.28,
+          pickNotch: 0.18,
+          cutoff: 3400,
+          highpass: 62,
+          body1: [178, 2.4, 1.0],
+          body2: [720, 3.1, 0.75],
+          attack: 0.0065,
+          release: 3.25,
+          transient: 0.54,
+          detune: 1.8,
+          master: 0.72,
+          wet: 0.08
+        },
+        twelve: {
+          label: "十二弦木吉他",
+          description: "每根弦附加八度或微失谐的复弦",
+          duration: 3.4,
+          seedSmooth: 0.25,
+          seedLevel: 0.82,
+          damping: 0.9971,
+          frequencyLoss: 0.00105,
+          bodyNoise: 0.011,
+          pickPosition: 0.17,
+          pickNotch: 0.38,
+          cutoff: 8200,
+          highpass: 62,
+          body1: [112, 2.8, 1.0],
+          body2: [236, 2.1, 1.3],
+          attack: 0.004,
+          release: 3.05,
+          transient: 0.42,
+          detune: 4.2,
+          master: 0.57,
+          wet: 0.16,
+          companion: "twelve"
+        }
+      };
+
+      const GESTURE_OPTIONS = ["Closed_Fist", "Open_Palm", "Victory", "Pointing_Up", "Thumb_Up", "ILoveYou"];
+
+      const GESTURE_LABELS = {
+        Closed_Fist: "握拳",
+        Open_Palm: "张开手掌",
+        Victory: "剪刀手",
+        Pointing_Up: "食指向上",
+        Thumb_Up: "拇指向上",
+        ILoveYou: "伸拇指、食指和小指",
+        None: "未匹配"
+      };
+
+      const GESTURE_ICONS = {
+        Closed_Fist: "✊",
+        Open_Palm: "✋",
+        Victory: "✌️",
+        Pointing_Up: "☝️",
+        Thumb_Up: "👍",
+        ILoveYou: "🤟"
+      };
+
+      const DEFAULT_PERFORMANCE_CONFIG = {
+        capo: 2,
+        autoTreble: true,
+        trebleDelay: 180,
+        tone: "steel",
+        brightness: 58,
+        room: 34,
+        slots: [
+          { gesture: "Closed_Fist", chord: "A" },
+          { gesture: "Open_Palm", chord: "D" },
+          { gesture: "Victory", chord: "E7" },
+          { gesture: "Pointing_Up", chord: "Em" },
+          { gesture: "Thumb_Up", chord: "G" }
+        ]
+      };
+
+      let performanceConfig = loadPerformanceConfig();
+      let CHORDS = {};
+      let GESTURE_TO_CHORD = {};
+      rebuildPerformanceDefinitions();
+
+      const HAND_CONNECTIONS = [
+        [0,1],[1,2],[2,3],[3,4],
+        [0,5],[5,6],[6,7],[7,8],
+        [5,9],[9,10],[10,11],[11,12],
+        [9,13],[13,14],[14,15],[15,16],
+        [13,17],[17,18],[18,19],[19,20],[0,17]
+      ];
+
+      const MOTION_TOP = 0.10;
+      const MOTION_BOTTOM = 0.92;
+      const GESTURE_HOLD_MS = 105;
+      const STRUM_COOLDOWN_MS = 82;
+
+      const els = {
+        stage: document.getElementById("stage"),
+        camera: document.getElementById("camera"),
+        canvas: document.getElementById("skeleton"),
+        cameraAction: document.getElementById("cameraAction"),
+        startCamera: document.getElementById("startCamera"),
+        manualMode: document.getElementById("manualMode"),
+        welcome: document.getElementById("welcome"),
+        currentChord: document.getElementById("currentChord"),
+        currentChordCard: document.getElementById("currentChordCard"),
+        capoDisplay: document.getElementById("capoDisplay"),
+        chordGrid: document.getElementById("chordGrid"),
+        progressionGrid: document.getElementById("progressionGrid"),
+        rightHandPanel: document.getElementById("rightHandPanel"),
+        modeButtons: [...document.querySelectorAll(".mode-button")],
+        stringsField: document.getElementById("stringsField"),
+        pluckBass: document.getElementById("pluckBass"),
+        nextBassNumber: document.getElementById("nextBassNumber"),
+        strumDown: document.getElementById("strumDown"),
+        strumUp: document.getElementById("strumUp"),
+        leftStatus: document.getElementById("leftStatus"),
+        rightStatus: document.getElementById("rightStatus"),
+        leftStatusText: document.getElementById("leftStatusText"),
+        rightStatusText: document.getElementById("rightStatusText"),
+        motionGuide: document.getElementById("motionGuide"),
+        motionLabel: document.getElementById("motionLabel"),
+        sensitivity: document.getElementById("sensitivity"),
+        sensitivityValue: document.getElementById("sensitivityValue"),
+        swapHands: document.getElementById("swapHands"),
+        showSkeleton: document.getElementById("showSkeleton"),
+        showDebug: document.getElementById("showDebug"),
+        capoControl: document.getElementById("capoControl"),
+        capoValue: document.getElementById("capoValue"),
+        trebleDelay: document.getElementById("trebleDelay"),
+        trebleDelayValue: document.getElementById("trebleDelayValue"),
+        autoTreble: document.getElementById("autoTreble"),
+        tonePreset: document.getElementById("tonePreset"),
+        toneBrightness: document.getElementById("toneBrightness"),
+        toneBrightnessValue: document.getElementById("toneBrightnessValue"),
+        toneRoom: document.getElementById("toneRoom"),
+        toneRoomValue: document.getElementById("toneRoomValue"),
+        mappingRows: [...document.querySelectorAll(".mapping-row")],
+        debugPanel: document.getElementById("debugPanel"),
+        debugGesture: document.getElementById("debugGesture"),
+        debugConfidence: document.getElementById("debugConfidence"),
+        debugVelocity: document.getElementById("debugVelocity"),
+        debugState: document.getElementById("debugState"),
+        debugFps: document.getElementById("debugFps"),
+        statusLine: document.getElementById("statusLine"),
+        toast: document.getElementById("toast")
+      };
+
+      const ctx2d = els.canvas.getContext("2d");
+
+      let audioContext = null;
+      let audioInput = null;
+      let reverbInput = null;
+      let audioNodes = null;
+      let stringBuffers = new Map();
+      let currentChord = performanceConfig.slots[0].chord;
+      let playMode = "alternate";
+      let bassStep = 0;
+      let mediaStream = null;
+      let recognizer = null;
+      let modelLoading = null;
+      let animationFrame = 0;
+      let lastVideoTime = -1;
+      let lastInferenceAt = 0;
+      let inferenceFps = 0;
+      let gestureCandidate = null;
+      let gestureCandidateSince = 0;
+      let lastLeftSeenAt = 0;
+      let lastRightSeenAt = 0;
+      let toastTimer = 0;
+      const scheduledNoteLog = [];
+
+      const motion = {
+        rawY: null,
+        smoothY: null,
+        velocity: 0,
+        lastTime: 0,
+        state: "IDLE",
+        direction: 0,
+        anchorY: null,
+        firedInSegment: false,
+        lastSignificantAt: 0,
+        lastTrigger: 0
+      };
+
+      const pinch = {
+        smoothRatio: null,
+        closed: false,
+        lastTrigger: 0,
+        suppressUntil: 0
+      };
+
+      const rightMute = {
+        muted: false,
+        releaseSince: 0,
+        suppressUntil: 0
+      };
+
+      function clampNumber(value, min, max, fallback) {
+        const number = Number(value);
+        return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
+      }
+
+      function loadPerformanceConfig() {
+        const fallback = JSON.parse(JSON.stringify(DEFAULT_PERFORMANCE_CONFIG));
+        try {
+          const saved = JSON.parse(localStorage.getItem("void-guitar-performance-v1") || "null");
+          if (!saved || typeof saved !== "object") return fallback;
+
+          const config = {
+            capo: clampNumber(saved.capo, 0, 7, fallback.capo),
+            autoTreble: saved.autoTreble !== false,
+            trebleDelay: clampNumber(saved.trebleDelay, 80, 500, fallback.trebleDelay),
+            tone: GUITAR_TONES[saved.tone] ? saved.tone : fallback.tone,
+            brightness: clampNumber(saved.brightness, 0, 100, fallback.brightness),
+            room: clampNumber(saved.room, 0, 100, fallback.room),
+            slots: []
+          };
+          const usedGestures = new Set();
+
+          for (let index = 0; index < 5; index += 1) {
+            const candidate = saved.slots?.[index] || fallback.slots[index];
+            let gesture = GESTURE_OPTIONS.includes(candidate.gesture) ? candidate.gesture : fallback.slots[index].gesture;
+            if (usedGestures.has(gesture)) {
+              gesture = GESTURE_OPTIONS.find(option => !usedGestures.has(option)) || fallback.slots[index].gesture;
+            }
+            usedGestures.add(gesture);
+            config.slots.push({
+              gesture,
+              chord: CHORD_LIBRARY[candidate.chord] ? candidate.chord : fallback.slots[index].chord
+            });
+          }
+          return config;
+        } catch (error) {
+          return fallback;
+        }
+      }
+
+      function savePerformanceConfig() {
+        try {
+          localStorage.setItem("void-guitar-performance-v1", JSON.stringify(performanceConfig));
+        } catch (error) {
+          console.warn("无法保存演奏配置", error);
+        }
+      }
+
+      function rebuildPerformanceDefinitions() {
+        const transpose = note => note + performanceConfig.capo;
+        CHORDS = Object.fromEntries(
+          Object.entries(CHORD_LIBRARY).map(([name, chord]) => [name, {
+            notes: chord.notes.map(transpose),
+            bass: chord.bass.map(transpose),
+            brush: chord.treble.map(transpose),
+            label: name
+          }])
+        );
+        GESTURE_TO_CHORD = Object.fromEntries(
+          performanceConfig.slots.map(slot => [slot.gesture, slot.chord])
+        );
+      }
+
+      function fillSelect(select, values, labelFor) {
+        select.replaceChildren();
+        values.forEach(value => {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = labelFor(value);
+          select.append(option);
+        });
+      }
+
+      function renderPerformanceConfig() {
+        els.capoControl.value = String(performanceConfig.capo);
+        els.capoValue.value = String(performanceConfig.capo);
+        els.capoDisplay.textContent = String(performanceConfig.capo);
+        els.trebleDelay.value = String(performanceConfig.trebleDelay);
+        els.trebleDelayValue.value = `${performanceConfig.trebleDelay} ms`;
+        els.autoTreble.checked = performanceConfig.autoTreble;
+        fillSelect(els.tonePreset, Object.keys(GUITAR_TONES), value => GUITAR_TONES[value].label);
+        els.tonePreset.value = performanceConfig.tone;
+        els.tonePreset.title = GUITAR_TONES[performanceConfig.tone].description;
+        els.toneBrightness.value = String(performanceConfig.brightness);
+        els.toneBrightnessValue.value = `${performanceConfig.brightness}%`;
+        els.toneRoom.value = String(performanceConfig.room);
+        els.toneRoomValue.value = `${performanceConfig.room}%`;
+
+        els.mappingRows.forEach((row, index) => {
+          const gestureSelect = row.querySelector(".gesture-select");
+          const chordSelect = row.querySelector(".chord-select");
+          fillSelect(gestureSelect, GESTURE_OPTIONS, value => `${GESTURE_ICONS[value]} ${GESTURE_LABELS[value]}`);
+          fillSelect(chordSelect, Object.keys(CHORD_LIBRARY), value => value);
+          gestureSelect.value = performanceConfig.slots[index].gesture;
+          chordSelect.value = performanceConfig.slots[index].chord;
+        });
+
+        els.chordGrid.querySelectorAll(".chord-button").forEach((button, index) => {
+          const slot = performanceConfig.slots[index];
+          button.dataset.chord = slot.chord;
+          button.dataset.gesture = slot.gesture;
+          button.querySelector(".gesture-icon").textContent = GESTURE_ICONS[slot.gesture];
+          button.querySelector(".chord-copy strong").textContent = slot.chord;
+          button.querySelector(".chord-copy small").textContent = GESTURE_LABELS[slot.gesture];
+          button.setAttribute("aria-pressed", String(slot.chord === currentChord));
+        });
+
+        els.currentChord.textContent = currentChord;
+        els.progressionGrid.querySelectorAll(".song-bar").forEach(button => {
+          button.dataset.chordActive = String(button.dataset.chord === currentChord);
+        });
+      }
+
+      function applyPerformanceConfig() {
+        rebuildPerformanceDefinitions();
+        if (!CHORDS[currentChord]) currentChord = performanceConfig.slots[0].chord;
+        bassStep = 0;
+        els.nextBassNumber.textContent = "1";
+        renderPerformanceConfig();
+        savePerformanceConfig();
+      }
+
+      function midiToFrequency(midi) {
+        return 440 * Math.pow(2, (midi - 69) / 12);
+      }
+
+      function getActiveTone() {
+        return GUITAR_TONES[performanceConfig.tone] || GUITAR_TONES.steel;
+      }
+
+      function createPluckedStringBuffer(midi) {
+        const preset = getActiveTone();
+        const sampleRate = audioContext.sampleRate;
+        const duration = preset.duration;
+        const length = Math.floor(sampleRate * duration);
+        const buffer = audioContext.createBuffer(1, length, sampleRate);
+        const data = buffer.getChannelData(0);
+        const frequency = midiToFrequency(midi);
+        const delay = Math.max(2, Math.round(sampleRate / frequency));
+        let previousNoise = 0;
+
+        for (let i = 0; i < delay; i += 1) {
+          const white = Math.random() * 2 - 1;
+          previousNoise = previousNoise * preset.seedSmooth + white * (1 - preset.seedSmooth);
+          data[i] = previousNoise * preset.seedLevel * (0.9 + Math.random() * 0.1);
+        }
+
+        const pickDelay = Math.max(1, Math.round(delay * preset.pickPosition));
+        for (let i = pickDelay; i < delay; i += 1) {
+          data[i] -= data[i - pickDelay] * preset.pickNotch;
+        }
+
+        const damping = preset.damping - Math.min(
+          preset.frequencyLoss,
+          (frequency / 1200) * preset.frequencyLoss
+        );
+        let loopMemory = 0;
+        for (let i = delay; i < length; i += 1) {
+          const averaged = (data[i - delay] + data[i - delay + 1]) * 0.5;
+          loopMemory = loopMemory * 0.075 + averaged * 0.925;
+          const body = i < sampleRate * 0.024 ? (Math.random() * 2 - 1) * preset.bodyNoise : 0;
+          data[i] = loopMemory * damping + body;
+        }
+
+        const fadeStart = Math.floor(length * 0.88);
+        for (let i = fadeStart; i < length; i += 1) {
+          data[i] *= 1 - (i - fadeStart) / (length - fadeStart);
+        }
+
+        return buffer;
+      }
+
+      function createReverbImpulse(seconds = 1.55, decay = 3.1) {
+        const length = Math.floor(audioContext.sampleRate * seconds);
+        const impulse = audioContext.createBuffer(2, length, audioContext.sampleRate);
+        for (let channel = 0; channel < 2; channel += 1) {
+          const data = impulse.getChannelData(channel);
+          for (let i = 0; i < length; i += 1) {
+            const envelope = Math.pow(1 - i / length, decay);
+            data[i] = (Math.random() * 2 - 1) * envelope;
+          }
+        }
+        return impulse;
+      }
+
+      function setAudioValue(param, value, immediate = false) {
+        if (!audioContext) return;
+        const now = audioContext.currentTime;
+        param.cancelScheduledValues(now);
+        if (immediate) param.setValueAtTime(value, now);
+        else param.setTargetAtTime(value, now, 0.035);
+      }
+
+      function configureAudioTone(immediate = false) {
+        if (!audioNodes || !audioContext) return;
+        const preset = getActiveTone();
+        const brightnessFactor = 0.62 + performanceConfig.brightness * 0.0065;
+        const roomFactor = 0.18 + performanceConfig.room * 0.018;
+
+        setAudioValue(audioNodes.highpass.frequency, preset.highpass, immediate);
+        setAudioValue(audioNodes.body1.frequency, preset.body1[0], immediate);
+        setAudioValue(audioNodes.body1.gain, preset.body1[1], immediate);
+        setAudioValue(audioNodes.body1.Q, preset.body1[2], immediate);
+        setAudioValue(audioNodes.body2.frequency, preset.body2[0], immediate);
+        setAudioValue(audioNodes.body2.gain, preset.body2[1], immediate);
+        setAudioValue(audioNodes.body2.Q, preset.body2[2], immediate);
+        setAudioValue(audioNodes.tone.frequency, Math.min(12000, Math.max(1600, preset.cutoff * brightnessFactor)), immediate);
+        setAudioValue(audioNodes.wet.gain, Math.min(0.28, preset.wet * roomFactor), immediate);
+        setAudioValue(audioNodes.master.gain, preset.master, immediate);
+      }
+
+      async function ensureAudio() {
+        if (!audioContext) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContextClass) throw new Error("当前浏览器不支持 Web Audio");
+
+          audioContext = new AudioContextClass({ latencyHint: "interactive" });
+
+          const highpass = audioContext.createBiquadFilter();
+          highpass.type = "highpass";
+
+          const body1 = audioContext.createBiquadFilter();
+          body1.type = "peaking";
+
+          const body2 = audioContext.createBiquadFilter();
+          body2.type = "peaking";
+
+          const tone = audioContext.createBiquadFilter();
+          tone.type = "lowpass";
+          tone.Q.value = 0.6;
+
+          const compressor = audioContext.createDynamicsCompressor();
+          compressor.threshold.value = -18;
+          compressor.knee.value = 18;
+          compressor.ratio.value = 5;
+          compressor.attack.value = 0.004;
+          compressor.release.value = 0.22;
+
+          const master = audioContext.createGain();
+          master.gain.value = 0.76;
+
+          const convolver = audioContext.createConvolver();
+          convolver.buffer = createReverbImpulse();
+          const wet = audioContext.createGain();
+
+          audioInput = highpass;
+          reverbInput = convolver;
+          audioNodes = { highpass, body1, body2, tone, compressor, master, convolver, wet };
+          highpass.connect(body1).connect(body2).connect(tone);
+          tone.connect(compressor);
+          tone.connect(convolver);
+          convolver.connect(wet).connect(compressor);
+          compressor.connect(master).connect(audioContext.destination);
+          configureAudioTone(true);
+
+          const allNotes = new Set(Object.values(CHORDS).flatMap(chord => chord.notes));
+          allNotes.forEach(note => stringBuffers.set(`${performanceConfig.tone}:${note}`, createPluckedStringBuffer(note)));
+        }
+
+        if (audioContext.state === "suspended") await audioContext.resume();
+      }
+
+      function scheduleStringVoice(note, stagger, intensity, index, detuneOffset = 0, gainScale = 1) {
+        const preset = getActiveTone();
+        const source = audioContext.createBufferSource();
+        const gain = audioContext.createGain();
+        const pickFilter = audioContext.createBiquadFilter();
+        const humanize = 0.94 + Math.random() * 0.1;
+        const cacheKey = `${performanceConfig.tone}:${note}`;
+        const peak = Math.max(0.045, intensity * humanize * gainScale * (0.78 + index * 0.025));
+        const knee = stagger + Math.min(0.16, preset.release * 0.055);
+
+        if (!stringBuffers.has(cacheKey)) stringBuffers.set(cacheKey, createPluckedStringBuffer(note));
+        source.buffer = stringBuffers.get(cacheKey);
+        source.detune.value = detuneOffset + (Math.random() - 0.5) * preset.detune;
+        pickFilter.type = "highpass";
+        pickFilter.frequency.value = preset.highpass;
+        gain.gain.setValueAtTime(0.0001, stagger);
+        gain.gain.exponentialRampToValueAtTime(peak, stagger + preset.attack);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak * preset.transient), knee);
+        gain.gain.exponentialRampToValueAtTime(0.0001, stagger + preset.release);
+
+        source.connect(pickFilter).connect(gain).connect(audioInput);
+        source.start(stagger);
+        source.stop(stagger + preset.release + 0.12);
+      }
+
+      function schedulePluckedNote(note, stagger, intensity, index = 0) {
+        if (window.location.hash === "#test") scheduledNoteLog.push({ note, stagger, intensity, index });
+        const preset = getActiveTone();
+        scheduleStringVoice(note, stagger, intensity, index);
+
+        if (preset.companion === "chorus") {
+          const detune = index % 2 ? -5.5 : 5.5;
+          scheduleStringVoice(note, stagger + 0.0085, intensity, index, detune, 0.19);
+        } else if (preset.companion === "twelve") {
+          const octavePair = note < 59;
+          const pairNote = octavePair ? note + 12 : note;
+          const detune = octavePair ? -3.5 : (index % 2 ? -7.5 : 7.5);
+          scheduleStringVoice(pairNote, stagger + 0.0095, intensity, index, detune, 0.44);
+        }
+      }
+
+      function playChord(direction, intensity = 0.82, voicing = "full") {
+        ensureAudio().then(() => {
+          const chord = CHORDS[currentChord];
+          const selectedNotes = voicing === "brush" ? chord.brush : chord.notes;
+          const notes = direction === "down" ? selectedNotes : [...selectedNotes].reverse();
+          const start = audioContext.currentTime + 0.008;
+          const stringGap = direction === "down" ? 0.017 : 0.014;
+
+          notes.forEach((note, index) => {
+            const stagger = start + index * stringGap;
+            schedulePluckedNote(note, stagger, intensity, index);
+          });
+        }).catch(error => {
+          setStatus(error.message, "error");
+        });
+      }
+
+      function previewTone() {
+        ensureAudio().then(() => {
+          const notes = CHORDS[currentChord].brush.slice(-3);
+          const start = audioContext.currentTime + 0.012;
+          notes.forEach((note, index) => {
+            schedulePluckedNote(note, start + index * 0.055, 0.38, index);
+          });
+        }).catch(error => setStatus(error.message, "error"));
+      }
+
+      function triggerStrum(direction, intensity = 0.82, source = "manual") {
+        playChord(direction, intensity, playMode === "alternate" ? "brush" : "full");
+        els.stringsField.classList.remove("hit-down", "hit-up");
+        void els.stringsField.offsetWidth;
+        els.stringsField.classList.add(direction === "down" ? "hit-down" : "hit-up");
+
+        if (navigator.vibrate && source === "gesture") navigator.vibrate(8);
+      }
+
+      function triggerBass(source = "manual") {
+        if (playMode !== "alternate") return;
+        const playedStep = bassStep % 2;
+        const chord = CHORDS[currentChord];
+        const note = chord.bass[playedStep];
+        const trebleNotes = [...chord.brush].slice(-3);
+        const shouldAutoTreble = performanceConfig.autoTreble;
+        const trebleDelayMs = performanceConfig.trebleDelay;
+
+        ensureAudio().then(() => {
+          const bassStart = audioContext.currentTime + 0.006;
+          schedulePluckedNote(note, bassStart, 0.86, 0);
+          if (shouldAutoTreble) {
+            const trebleStart = bassStart + trebleDelayMs / 1000;
+            trebleNotes.forEach((trebleNote, index) => {
+              schedulePluckedNote(trebleNote, trebleStart + index * 0.032, 0.58, index);
+            });
+          }
+        }).catch(error => setStatus(error.message, "error"));
+
+        const strings = [...els.stringsField.querySelectorAll(".string")];
+        const string = strings[5 - playedStep];
+        strings.forEach(item => item.classList.remove("is-plucked"));
+        void els.stringsField.offsetWidth;
+        string?.classList.add("is-plucked");
+
+        if (shouldAutoTreble) {
+          window.setTimeout(() => {
+            strings.forEach(item => item.classList.remove("is-plucked"));
+            void els.stringsField.offsetWidth;
+            strings.slice(0, 3).forEach(item => item.classList.add("is-plucked"));
+          }, trebleDelayMs);
+        }
+
+        bassStep = (playedStep + 1) % 2;
+        els.nextBassNumber.textContent = String(bassStep + 1);
+        els.motionLabel.textContent = `低音 ${playedStep + 1}`;
+        if (navigator.vibrate && source === "gesture") navigator.vibrate(6);
+      }
+
+      function setChord(chord, source = "manual") {
+        if (!CHORDS[chord] || chord === currentChord) return;
+        currentChord = chord;
+        bassStep = 0;
+        els.nextBassNumber.textContent = "1";
+        els.currentChord.textContent = chord;
+        els.currentChordCard.classList.remove("is-changing");
+        void els.currentChordCard.offsetWidth;
+        els.currentChordCard.classList.add("is-changing");
+
+        els.chordGrid.querySelectorAll(".chord-button").forEach(button => {
+          button.setAttribute("aria-pressed", String(button.dataset.chord === chord));
+        });
+
+        els.progressionGrid.querySelectorAll(".song-bar").forEach(button => {
+          button.dataset.chordActive = String(button.dataset.chord === chord);
+        });
+
+        if (source === "gesture") showToast(`${CHORDS[chord].label} → ${chord}`);
+      }
+
+      function setStatus(message, tone = "neutral") {
+        els.statusLine.textContent = message;
+        els.statusLine.dataset.tone = tone;
+      }
+
+      function showToast(message) {
+        window.clearTimeout(toastTimer);
+        els.toast.textContent = message;
+        els.toast.classList.add("is-visible");
+        toastTimer = window.setTimeout(() => els.toast.classList.remove("is-visible"), 1400);
+      }
+
+      function setMotionHint(direction = 0, fired = false) {
+        const name = direction > 0 ? "down" : direction < 0 ? "up" : "both";
+        els.motionGuide.dataset.direction = name;
+        els.motionGuide.querySelector(".motion-arrow").textContent = direction > 0 ? "↓" : direction < 0 ? "↑" : "↕";
+        els.motionLabel.textContent = fired
+          ? direction > 0 ? "下扫" : "上扫"
+          : direction === 0
+            ? playMode === "alternate"
+              ? performanceConfig.autoTreble ? "捏合低音 · 自动高音" : "捏合低音 · 短扫刷弦"
+              : "短扫即可"
+            : direction > 0 ? "向下" : "向上";
+      }
+
+      function getMotionThresholds() {
+        const sensitivity = Number(els.sensitivity.value) / 100;
+        return {
+          velocity: 0.72 - sensitivity * 0.56,
+          distance: 0.075 - sensitivity * 0.061,
+          startVelocity: 0.24 - sensitivity * 0.14
+        };
+      }
+
+      function resetMotion() {
+        motion.rawY = null;
+        motion.smoothY = null;
+        motion.velocity = 0;
+        motion.lastTime = 0;
+        motion.state = "IDLE";
+        motion.direction = 0;
+        motion.anchorY = null;
+        motion.firedInSegment = false;
+        motion.lastSignificantAt = 0;
+        setMotionHint(0);
+      }
+
+      function resetPinch() {
+        pinch.smoothRatio = null;
+        pinch.closed = false;
+        pinch.suppressUntil = 0;
+      }
+
+      function resetRightMute() {
+        rightMute.muted = false;
+        rightMute.releaseSince = 0;
+        rightMute.suppressUntil = 0;
+      }
+
+      function setPlayMode(mode) {
+        if (!['alternate', 'strum'].includes(mode)) return;
+        playMode = mode;
+        bassStep = 0;
+        els.nextBassNumber.textContent = "1";
+        els.rightHandPanel.dataset.mode = mode;
+        els.modeButtons.forEach(button => {
+          button.setAttribute("aria-pressed", String(button.dataset.playMode === mode));
+        });
+        resetMotion();
+        resetPinch();
+        resetRightMute();
+        setStatus(
+          mode === "alternate"
+            ? performanceConfig.autoTreble
+              ? "🤏 捏合＝交替低音　·　低音后自动补最后三根高音"
+              : "🤏 捏合＝交替低音 1 / 2　·　短扫＝刷剩余高音弦"
+            : "纯扫弦模式：短距离上下扫动即可发声。",
+          "ok"
+        );
+      }
+
+      function getPinchMetrics(landmarks) {
+        const palmLength = Math.max(0.001, distance3D(landmarks[0], landmarks[9]));
+        const ratio = distance3D(landmarks[4], landmarks[8]) / palmLength;
+        const supportingFingers = [
+          fingerIsExtended(landmarks, [9, 10, 11, 12]),
+          fingerIsExtended(landmarks, [13, 14, 15, 16]),
+          fingerIsExtended(landmarks, [17, 18, 19, 20])
+        ].filter(Boolean).length;
+        return { ratio, supportingFingers };
+      }
+
+      function processPinch(landmarks, now) {
+        const { ratio, supportingFingers } = getPinchMetrics(landmarks);
+        const sensitivity = Number(els.sensitivity.value) / 100;
+        const closeThreshold = 0.34 + sensitivity * 0.15;
+        const openThreshold = closeThreshold + 0.20;
+
+        if (pinch.smoothRatio === null) {
+          pinch.smoothRatio = ratio;
+          pinch.closed = ratio < closeThreshold;
+          return pinch.closed;
+        }
+
+        pinch.smoothRatio += (ratio - pinch.smoothRatio) * 0.72;
+
+        if (
+          supportingFingers >= 1 &&
+          !pinch.closed &&
+          pinch.smoothRatio < closeThreshold &&
+          now - pinch.lastTrigger > 145
+        ) {
+          pinch.closed = true;
+          pinch.lastTrigger = now;
+          triggerBass("gesture");
+        } else if (pinch.closed && pinch.smoothRatio > openThreshold) {
+          pinch.closed = false;
+          pinch.suppressUntil = now + 90;
+        }
+
+        return pinch.closed || now < pinch.suppressUntil;
+      }
+
+      function processRightFistGate(landmarks, modelGesture, now) {
+        const geometry = classifyGestureFromLandmarks(landmarks);
+        const modelName = modelGesture?.categoryName || "None";
+        const modelScore = modelGesture?.score ?? 0;
+        const { ratio, supportingFingers } = getPinchMetrics(landmarks);
+        const sensitivity = Number(els.sensitivity.value) / 100;
+        const pinchThreshold = 0.34 + sensitivity * 0.15;
+        const looksLikePinch = ratio < pinchThreshold && supportingFingers >= 1;
+        const looksLikeFist = !looksLikePinch && (
+          geometry?.name === "Closed_Fist" ||
+          (modelName === "Closed_Fist" && modelScore >= 0.50)
+        );
+
+        if (looksLikeFist) {
+          rightMute.muted = true;
+          rightMute.releaseSince = 0;
+          rightMute.suppressUntil = 0;
+        } else if (rightMute.muted) {
+          if (!rightMute.releaseSince) rightMute.releaseSince = now;
+          if (now - rightMute.releaseSince >= 45) {
+            rightMute.muted = false;
+            rightMute.releaseSince = 0;
+            rightMute.suppressUntil = now + 55;
+          }
+        }
+
+        return rightMute.muted || now < rightMute.suppressUntil;
+      }
+
+      function holdMotionAt(rawY, now, state) {
+        motion.rawY = rawY;
+        motion.smoothY = rawY;
+        motion.velocity = 0;
+        motion.lastTime = now;
+        motion.anchorY = rawY;
+        motion.direction = 0;
+        motion.firedInSegment = false;
+        motion.lastSignificantAt = now;
+        motion.state = state;
+        els.debugState.textContent = state;
+      }
+
+      function getVideoCoverTransform(rect) {
+        const videoWidth = els.camera.videoWidth || rect.width;
+        const videoHeight = els.camera.videoHeight || rect.height;
+        const scale = Math.max(rect.width / videoWidth, rect.height / videoHeight);
+        const displayWidth = videoWidth * scale;
+        const displayHeight = videoHeight * scale;
+        return {
+          displayWidth,
+          displayHeight,
+          offsetX: (rect.width - displayWidth) / 2,
+          offsetY: (rect.height - displayHeight) / 2
+        };
+      }
+
+      function sourceYToStageY(sourceY) {
+        const rect = els.canvas.getBoundingClientRect();
+        const transform = getVideoCoverTransform(rect);
+        return (transform.offsetY + sourceY * transform.displayHeight) / rect.height;
+      }
+
+      function processRightHand(landmarks, now, modelGesture) {
+        const palmIndices = [0, 5, 9, 13, 17];
+        const sourceY = palmIndices.reduce((sum, index) => sum + landmarks[index].y, 0) / palmIndices.length;
+        const rawY = sourceYToStageY(sourceY);
+        const fistSuppressesStrum = processRightFistGate(landmarks, modelGesture, now);
+
+        if (fistSuppressesStrum) {
+          resetPinch();
+          holdMotionAt(rawY, now, "MUTED");
+          els.motionGuide.dataset.direction = "both";
+          els.motionGuide.querySelector(".motion-arrow").textContent = "✊";
+          els.motionLabel.textContent = "握拳 · 静音回位";
+          return { muted: true, pinching: false };
+        }
+
+        const pinchSuppressesBrush = playMode === "alternate" && processPinch(landmarks, now);
+
+        if (pinchSuppressesBrush) {
+          holdMotionAt(rawY, now, "PINCH");
+          return { muted: false, pinching: true };
+        }
+
+        if (motion.rawY === null) {
+          motion.rawY = rawY;
+          motion.smoothY = rawY;
+          motion.lastTime = now;
+          motion.anchorY = rawY;
+          motion.lastSignificantAt = now;
+          motion.state = "IDLE";
+          setMotionHint(0);
+          return { muted: false, pinching: false };
+        }
+
+        const dt = Math.max(0.008, Math.min(0.08, (now - motion.lastTime) / 1000));
+        const previousY = motion.smoothY;
+        motion.smoothY += (rawY - motion.smoothY) * 0.68;
+        const instantaneousVelocity = (motion.smoothY - previousY) / dt;
+        motion.velocity += (instantaneousVelocity - motion.velocity) * 0.62;
+        motion.rawY = rawY;
+        motion.lastTime = now;
+
+        const thresholds = getMotionThresholds();
+        const absoluteVelocity = Math.abs(motion.velocity);
+        const nextDirection = instantaneousVelocity > thresholds.startVelocity
+          ? 1
+          : instantaneousVelocity < -thresholds.startVelocity ? -1 : 0;
+
+        if (motion.direction === 0 && nextDirection !== 0) {
+          motion.direction = nextDirection;
+          motion.anchorY = previousY;
+          motion.firedInSegment = false;
+          motion.lastSignificantAt = now;
+          motion.state = nextDirection > 0 ? "DOWN" : "UP";
+          setMotionHint(nextDirection);
+        } else if (nextDirection !== 0 && nextDirection !== motion.direction) {
+          motion.direction = nextDirection;
+          motion.anchorY = previousY;
+          motion.firedInSegment = false;
+          motion.lastSignificantAt = now;
+          motion.state = nextDirection > 0 ? "DOWN" : "UP";
+          setMotionHint(nextDirection);
+        } else if (nextDirection === motion.direction && nextDirection !== 0) {
+          motion.lastSignificantAt = now;
+        }
+
+        const displacement = motion.direction === 0 || motion.anchorY === null
+          ? 0
+          : (motion.smoothY - motion.anchorY) * motion.direction;
+        const cooledDown = now - motion.lastTrigger > STRUM_COOLDOWN_MS;
+        const insidePlayArea = motion.smoothY > MOTION_TOP && motion.smoothY < MOTION_BOTTOM;
+
+        if (
+          motion.direction !== 0 &&
+          !motion.firedInSegment &&
+          displacement >= thresholds.distance &&
+          absoluteVelocity >= thresholds.velocity &&
+          cooledDown &&
+          insidePlayArea
+        ) {
+          const direction = motion.direction > 0 ? "down" : "up";
+          const intensity = Math.min(1, 0.44 + absoluteVelocity * 0.5);
+          triggerStrum(direction, intensity, "gesture");
+          motion.lastTrigger = now;
+          motion.firedInSegment = true;
+          motion.state = motion.direction > 0 ? "DOWN_FIRED" : "UP_FIRED";
+          setMotionHint(motion.direction, true);
+        }
+
+        if (nextDirection === 0 && now - motion.lastSignificantAt > 95) {
+          motion.direction = 0;
+          motion.anchorY = motion.smoothY;
+          motion.firedInSegment = false;
+          motion.state = "IDLE";
+          setMotionHint(0);
+        }
+
+        els.debugVelocity.textContent = motion.velocity.toFixed(2);
+        els.debugState.textContent = motion.state;
+        return { muted: false, pinching: false };
+      }
+
+      function distance3D(a, b) {
+        return Math.hypot(a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0));
+      }
+
+      function jointAngle(a, b, c) {
+        const ab = { x: a.x - b.x, y: a.y - b.y, z: (a.z || 0) - (b.z || 0) };
+        const cb = { x: c.x - b.x, y: c.y - b.y, z: (c.z || 0) - (b.z || 0) };
+        const dot = ab.x * cb.x + ab.y * cb.y + ab.z * cb.z;
+        const length = Math.hypot(ab.x, ab.y, ab.z) * Math.hypot(cb.x, cb.y, cb.z);
+        if (!length) return 0;
+        return Math.acos(Math.max(-1, Math.min(1, dot / length))) * 180 / Math.PI;
+      }
+
+      function fingerIsExtended(landmarks, indices) {
+        const [mcp, pip, dip, tip] = indices.map(index => landmarks[index]);
+        const pipStraightness = jointAngle(mcp, pip, dip);
+        const dipStraightness = jointAngle(pip, dip, tip);
+        const reachRatio = distance3D(tip, landmarks[0]) / Math.max(0.001, distance3D(pip, landmarks[0]));
+        return pipStraightness > 137 && dipStraightness > 132 && reachRatio > 1.07;
+      }
+
+      function classifyGestureFromLandmarks(landmarks) {
+        const index = fingerIsExtended(landmarks, [5, 6, 7, 8]);
+        const middle = fingerIsExtended(landmarks, [9, 10, 11, 12]);
+        const ring = fingerIsExtended(landmarks, [13, 14, 15, 16]);
+        const pinky = fingerIsExtended(landmarks, [17, 18, 19, 20]);
+        const extendedCount = [index, middle, ring, pinky].filter(Boolean).length;
+
+        if (index && middle && !ring && !pinky) return { name: "Victory", score: 0.78 };
+        if (index && !middle && !ring && !pinky) return { name: "Pointing_Up", score: 0.76 };
+        if (extendedCount >= 3) return { name: "Open_Palm", score: extendedCount === 4 ? 0.8 : 0.7 };
+        if (extendedCount === 0) return { name: "Closed_Fist", score: 0.74 };
+        return null;
+      }
+
+      function chooseChordGesture(modelGesture, landmarks) {
+        const modelName = modelGesture?.categoryName || "None";
+        const modelScore = modelGesture?.score ?? 0;
+        const geometry = classifyGestureFromLandmarks(landmarks);
+
+        if (geometry && geometry.name === modelName) {
+          return { name: modelName, score: Math.max(modelScore, geometry.score) };
+        }
+        if (GESTURE_TO_CHORD[modelName] && modelScore >= 0.52) {
+          return { name: modelName, score: modelScore };
+        }
+        if (geometry) return geometry;
+        if (GESTURE_TO_CHORD[modelName] && modelScore >= 0.43) {
+          return { name: modelName, score: modelScore };
+        }
+        return { name: "None", score: modelScore };
+      }
+
+      function processLeftGesture(gesture, confidence, now) {
+        els.debugGesture.textContent = gesture || "—";
+        els.debugConfidence.textContent = Number.isFinite(confidence) ? confidence.toFixed(2) : "—";
+
+        if (!GESTURE_TO_CHORD[gesture] || confidence < 0.43) {
+          if (gestureCandidate && now - gestureCandidateSince > 180) gestureCandidate = null;
+          return;
+        }
+
+        if (gesture !== gestureCandidate) {
+          gestureCandidate = gesture;
+          gestureCandidateSince = now;
+          return;
+        }
+
+        if (now - gestureCandidateSince >= GESTURE_HOLD_MS) {
+          setChord(GESTURE_TO_CHORD[gesture], "gesture");
+          gestureCandidateSince = now + 1000;
+        }
+      }
+
+      function applyHandSwap(role) {
+        if (!els.swapHands.checked) return role;
+        if (role === "left") return "right";
+        if (role === "right") return "left";
+        return role;
+      }
+
+      function resolveHandRole(label) {
+        const normalized = String(label || "").toLowerCase();
+        const role = normalized.includes("left") ? "left" : normalized.includes("right") ? "right" : "unknown";
+        return applyHandSwap(role);
+      }
+
+      function getHandScreenX(landmarks) {
+        const palmIndices = [0, 5, 9, 13, 17];
+        const sourceX = palmIndices.reduce((sum, index) => sum + landmarks[index].x, 0) / palmIndices.length;
+        return 1 - sourceX;
+      }
+
+      function assignHandRoles(landmarks, handedness) {
+        if (landmarks.length >= 2) {
+          const ordered = landmarks
+            .map((hand, index) => ({ index, screenX: getHandScreenX(hand) }))
+            .sort((a, b) => a.screenX - b.screenX);
+          const roles = new Array(landmarks.length).fill("unknown");
+          roles[ordered[0].index] = applyHandSwap("left");
+          roles[ordered[ordered.length - 1].index] = applyHandSwap("right");
+          return roles;
+        }
+
+        if (landmarks.length === 1) {
+          const screenX = getHandScreenX(landmarks[0]);
+          if (screenX < 0.42) return [applyHandSwap("left")];
+          if (screenX > 0.58) return [applyHandSwap("right")];
+          const label = handedness[0]?.[0]?.categoryName || handedness[0]?.[0]?.displayName || "";
+          const resolved = resolveHandRole(label);
+          return [resolved === "unknown" ? applyHandSwap(screenX <= 0.5 ? "left" : "right") : resolved];
+        }
+
+        return [];
+      }
+
+      function processRecognition(result, now) {
+        const handedness = result.handedness || result.handednesses || [];
+        const gestures = result.gestures || [];
+        const landmarks = result.landmarks || [];
+        const roles = assignHandRoles(landmarks, handedness);
+        let sawLeft = false;
+        let sawRight = false;
+
+        for (let index = 0; index < landmarks.length; index += 1) {
+          const role = roles[index] || "unknown";
+          const topGesture = gestures[index]?.[0];
+
+          if (role === "left") {
+            sawLeft = true;
+            lastLeftSeenAt = now;
+            const chosenGesture = chooseChordGesture(topGesture, landmarks[index]);
+            processLeftGesture(chosenGesture.name, chosenGesture.score, now);
+            els.leftStatus.dataset.seen = "true";
+            els.leftStatusText.textContent = `左手：${GESTURE_LABELS[chosenGesture.name] || chosenGesture.name}`;
+          } else if (role === "right") {
+            sawRight = true;
+            lastRightSeenAt = now;
+            const rightState = processRightHand(landmarks[index], now, topGesture);
+            els.rightStatus.dataset.seen = "true";
+            els.rightStatusText.textContent = rightState?.muted
+              ? "右手：握拳静音"
+              : rightState?.pinching
+                ? "右手：低音"
+                : playMode === "alternate" ? "右手：捏合 / 扫弦" : "右手：扫弦已锁定";
+          }
+        }
+
+        if (!sawLeft && now - lastLeftSeenAt > 260) {
+          els.leftStatus.dataset.seen = "false";
+          els.leftStatusText.textContent = "左手：等待识别";
+          gestureCandidate = null;
+        }
+
+        if (!sawRight && now - lastRightSeenAt > 260) {
+          els.rightStatus.dataset.seen = "false";
+          els.rightStatusText.textContent = "右手：等待扫弦";
+        }
+
+        if (!sawRight && now - lastRightSeenAt > 420) {
+          resetMotion();
+          resetPinch();
+          resetRightMute();
+        }
+        drawSkeletons(landmarks, roles);
+      }
+
+      function resizeCanvas() {
+        const rect = els.canvas.getBoundingClientRect();
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        const width = Math.max(1, Math.round(rect.width * dpr));
+        const height = Math.max(1, Math.round(rect.height * dpr));
+        if (els.canvas.width !== width || els.canvas.height !== height) {
+          els.canvas.width = width;
+          els.canvas.height = height;
+        }
+        ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return rect;
+      }
+
+      function drawSkeletons(hands, roles) {
+        const rect = resizeCanvas();
+        const cover = getVideoCoverTransform(rect);
+        ctx2d.clearRect(0, 0, rect.width, rect.height);
+        if (!els.showSkeleton.checked) return;
+
+        const toStagePoint = point => {
+          const sourceX = cover.offsetX + point.x * cover.displayWidth;
+          return {
+            x: rect.width - sourceX,
+            y: cover.offsetY + point.y * cover.displayHeight
+          };
+        };
+
+        hands.forEach((landmarks, handIndex) => {
+          const role = roles[handIndex] || "unknown";
+          const color = role === "left" ? "#c6ff4a" : "#ff6f91";
+
+          ctx2d.lineCap = "round";
+          ctx2d.lineJoin = "round";
+          ctx2d.strokeStyle = color;
+          ctx2d.lineWidth = 2;
+          ctx2d.globalAlpha = 0.72;
+
+          HAND_CONNECTIONS.forEach(([from, to]) => {
+            const start = toStagePoint(landmarks[from]);
+            const end = toStagePoint(landmarks[to]);
+            ctx2d.beginPath();
+            ctx2d.moveTo(start.x, start.y);
+            ctx2d.lineTo(end.x, end.y);
+            ctx2d.stroke();
+          });
+
+          ctx2d.globalAlpha = 0.92;
+          landmarks.forEach((point, pointIndex) => {
+            const radius = [4,8,12,16,20].includes(pointIndex) ? 3.3 : 2.2;
+            const stagePoint = toStagePoint(point);
+            ctx2d.beginPath();
+            ctx2d.arc(stagePoint.x, stagePoint.y, radius, 0, Math.PI * 2);
+            ctx2d.fillStyle = pointIndex === 0 ? "#ffffff" : color;
+            ctx2d.fill();
+          });
+        });
+
+        ctx2d.globalAlpha = 1;
+      }
+
+      async function loadRecognizer() {
+        if (recognizer) return recognizer;
+        if (modelLoading) return modelLoading;
+
+        modelLoading = (async () => {
+          const vision = await import(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/+esm`);
+          const fileset = await vision.FilesetResolver.forVisionTasks(WASM_ROOT);
+          const options = {
+            baseOptions: { modelAssetPath: MODEL_URL, delegate: "GPU" },
+            runningMode: "VIDEO",
+            numHands: 2,
+            minHandDetectionConfidence: 0.35,
+            minHandPresenceConfidence: 0.40,
+            minTrackingConfidence: 0.40,
+            cannedGesturesClassifierOptions: { scoreThreshold: 0.35 }
+          };
+
+          try {
+            recognizer = await vision.GestureRecognizer.createFromOptions(fileset, options);
+          } catch (gpuError) {
+            options.baseOptions = { modelAssetPath: MODEL_URL, delegate: "CPU" };
+            recognizer = await vision.GestureRecognizer.createFromOptions(fileset, options);
+          }
+
+          return recognizer;
+        })();
+
+        try {
+          return await modelLoading;
+        } finally {
+          modelLoading = null;
+        }
+      }
+
+      function recognitionLoop(now) {
+        if (!mediaStream) return;
+
+        if (
+          recognizer &&
+          els.camera.readyState >= 2 &&
+          els.camera.currentTime !== lastVideoTime &&
+          now - lastInferenceAt >= 28
+        ) {
+          lastVideoTime = els.camera.currentTime;
+          const started = performance.now();
+          try {
+            const result = recognizer.recognizeForVideo(els.camera, now);
+            const elapsed = performance.now() - started;
+            inferenceFps += ((1000 / Math.max(1, elapsed)) - inferenceFps) * 0.08;
+            els.debugFps.textContent = `${Math.round(inferenceFps)} max fps`;
+            processRecognition(result, now);
+          } catch (error) {
+            console.error(error);
+          }
+          lastInferenceAt = now;
+        }
+
+        animationFrame = requestAnimationFrame(recognitionLoop);
+      }
+
+      async function startCamera() {
+        if (mediaStream) return;
+
+        try {
+          await ensureAudio();
+          if (!navigator.mediaDevices?.getUserMedia) {
+            throw new Error("摄像头需要在 HTTPS 或 localhost 环境中运行");
+          }
+
+          els.startCamera.disabled = true;
+          els.startCamera.textContent = "正在启动…";
+          setStatus("正在请求摄像头权限…");
+
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              facingMode: "user",
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 30, max: 60 }
+            }
+          });
+
+          els.camera.srcObject = mediaStream;
+          await els.camera.play();
+          els.camera.classList.add("is-live");
+          els.welcome.classList.add("is-hidden");
+          els.cameraAction.dataset.active = "true";
+          els.cameraAction.textContent = "关闭摄像头";
+          setStatus("摄像头已开启，正在加载手势模型…");
+
+          await loadRecognizer();
+          setStatus("识别已就绪。左手换和弦，右手穿过琴弦。", "ok");
+          cancelAnimationFrame(animationFrame);
+          animationFrame = requestAnimationFrame(recognitionLoop);
+        } catch (error) {
+          console.error(error);
+          stopCamera(false);
+          els.welcome.classList.add("is-hidden");
+          setStatus(`${error.message || "摄像头启动失败"}。仍可使用下方按钮试玩。`, "error");
+          showToast("摄像头未启动，已进入手动模式");
+        } finally {
+          els.startCamera.disabled = false;
+          els.startCamera.textContent = "开启摄像头";
+        }
+      }
+
+      function stopCamera(updateStatus = true) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = 0;
+        if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+        els.camera.srcObject = null;
+        els.camera.classList.remove("is-live");
+        els.cameraAction.dataset.active = "false";
+        els.cameraAction.textContent = "开启摄像头";
+        els.leftStatus.dataset.seen = "false";
+        els.rightStatus.dataset.seen = "false";
+        els.leftStatusText.textContent = "左手：等待识别";
+        els.rightStatusText.textContent = "右手：等待扫弦";
+        ctx2d.clearRect(0, 0, els.canvas.width, els.canvas.height);
+        resetMotion();
+        resetPinch();
+        resetRightMute();
+        if (updateStatus) setStatus("摄像头已关闭。手动控制仍然可用。");
+      }
+
+      function enterManualMode() {
+        ensureAudio().then(() => {
+          els.welcome.classList.add("is-hidden");
+          setStatus("手动模式：Q 弹交替低音，空格或方向键刷弦。", "ok");
+          if (playMode === "alternate") triggerBass("manual");
+          else triggerStrum("down", 0.72, "manual");
+        }).catch(error => setStatus(error.message, "error"));
+      }
+
+      els.chordGrid.addEventListener("click", event => {
+        const button = event.target.closest(".chord-button");
+        if (button) setChord(button.dataset.chord, "manual");
+      });
+
+      els.progressionGrid.addEventListener("click", event => {
+        const button = event.target.closest(".song-bar");
+        if (button) setChord(button.dataset.chord, "manual");
+      });
+
+      els.strumDown.addEventListener("click", () => triggerStrum("down", 0.84, "manual"));
+      els.strumUp.addEventListener("click", () => triggerStrum("up", 0.76, "manual"));
+      els.pluckBass.addEventListener("click", () => triggerBass("manual"));
+      els.modeButtons.forEach(button => {
+        button.addEventListener("click", () => setPlayMode(button.dataset.playMode));
+      });
+      els.startCamera.addEventListener("click", startCamera);
+      els.manualMode.addEventListener("click", enterManualMode);
+      els.cameraAction.addEventListener("click", () => mediaStream ? stopCamera() : startCamera());
+
+      els.sensitivity.addEventListener("input", () => {
+        els.sensitivityValue.value = els.sensitivity.value;
+      });
+
+      els.capoControl.addEventListener("input", () => {
+        performanceConfig.capo = Number(els.capoControl.value);
+        applyPerformanceConfig();
+      });
+
+      els.trebleDelay.addEventListener("input", () => {
+        performanceConfig.trebleDelay = Number(els.trebleDelay.value);
+        els.trebleDelayValue.value = `${performanceConfig.trebleDelay} ms`;
+        savePerformanceConfig();
+      });
+
+      els.autoTreble.addEventListener("change", () => {
+        performanceConfig.autoTreble = els.autoTreble.checked;
+        savePerformanceConfig();
+        setMotionHint(0);
+        setStatus(
+          performanceConfig.autoTreble
+            ? "低音后会自动补最后三根高音。"
+            : "自动高音已关闭；短扫仍可刷剩余高音弦。",
+          "ok"
+        );
+      });
+
+      els.tonePreset.addEventListener("change", () => {
+        const nextTone = els.tonePreset.value;
+        if (!GUITAR_TONES[nextTone] || nextTone === performanceConfig.tone) return;
+        performanceConfig.tone = nextTone;
+        stringBuffers.clear();
+        configureAudioTone();
+        renderPerformanceConfig();
+        savePerformanceConfig();
+        setStatus(`${GUITAR_TONES[nextTone].label}：${GUITAR_TONES[nextTone].description}`, "ok");
+        previewTone();
+      });
+
+      els.toneBrightness.addEventListener("input", () => {
+        performanceConfig.brightness = Number(els.toneBrightness.value);
+        els.toneBrightnessValue.value = `${performanceConfig.brightness}%`;
+        configureAudioTone();
+        savePerformanceConfig();
+      });
+
+      els.toneRoom.addEventListener("input", () => {
+        performanceConfig.room = Number(els.toneRoom.value);
+        els.toneRoomValue.value = `${performanceConfig.room}%`;
+        configureAudioTone();
+        savePerformanceConfig();
+      });
+
+      els.mappingRows.forEach((row, slotIndex) => {
+        row.addEventListener("change", event => {
+          if (event.target.matches(".gesture-select")) {
+            const oldGesture = performanceConfig.slots[slotIndex].gesture;
+            const newGesture = event.target.value;
+            const otherIndex = performanceConfig.slots.findIndex((slot, index) => index !== slotIndex && slot.gesture === newGesture);
+            if (otherIndex >= 0) performanceConfig.slots[otherIndex].gesture = oldGesture;
+            performanceConfig.slots[slotIndex].gesture = newGesture;
+            applyPerformanceConfig();
+          } else if (event.target.matches(".chord-select")) {
+            const activeButton = els.chordGrid.querySelector(`.chord-button[data-slot="${slotIndex}"]`);
+            const wasActive = activeButton?.getAttribute("aria-pressed") === "true";
+            performanceConfig.slots[slotIndex].chord = event.target.value;
+            if (wasActive) currentChord = event.target.value;
+            applyPerformanceConfig();
+          }
+        });
+      });
+
+      els.swapHands.addEventListener("change", () => {
+        gestureCandidate = null;
+        resetMotion();
+        resetPinch();
+        resetRightMute();
+        showToast("左右手角色已交换");
+      });
+
+      els.showSkeleton.addEventListener("change", () => {
+        if (!els.showSkeleton.checked) ctx2d.clearRect(0, 0, els.canvas.width, els.canvas.height);
+      });
+
+      els.showDebug.addEventListener("change", () => {
+        els.debugPanel.classList.toggle("is-visible", els.showDebug.checked);
+      });
+
+      document.addEventListener("keydown", event => {
+        if (event.repeat || event.target.matches("input, select, textarea, summary")) return;
+        if (event.target.matches("button") && event.code === "Space") return;
+        const slotKeys = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4 };
+        if (slotKeys[event.code] !== undefined) {
+          event.preventDefault();
+          setChord(performanceConfig.slots[slotKeys[event.code]].chord, "manual");
+        } else if (event.code === "KeyQ") {
+          event.preventDefault();
+          triggerBass("manual");
+        } else if (event.code === "Space" || event.code === "ArrowDown") {
+          event.preventDefault();
+          triggerStrum("down", 0.84, "manual");
+        } else if (event.code === "ArrowUp") {
+          event.preventDefault();
+          triggerStrum("up", 0.76, "manual");
+        }
+      });
+
+      window.addEventListener("resize", () => {
+        if (!mediaStream) resizeCanvas();
+      });
+
+      window.addEventListener("pagehide", () => stopCamera(false));
+
+      if (window.location.hash === "#test") {
+        window.__voidGuitarTest = {
+          processRightHand,
+          processPinch,
+          processRightFistGate,
+          processRecognition,
+          chooseChordGesture,
+          assignHandRoles,
+          resetMotion,
+          resetPinch,
+          resetRightMute,
+          setPlayMode,
+          getMotion: () => ({ ...motion }),
+          getPinch: () => ({ ...pinch }),
+          getRightMute: () => ({ ...rightMute }),
+          getChord: () => currentChord,
+          getBassStep: () => bassStep,
+          getPlayMode: () => playMode,
+          getTone: () => performanceConfig.tone,
+          getPerformanceConfig: () => JSON.parse(JSON.stringify(performanceConfig)),
+          getScheduledNotes: () => scheduledNoteLog.map(item => ({ ...item }))
+        };
+      }
+
+      renderPerformanceConfig();
+      resizeCanvas();
+      setMotionHint(0);
+    })();
+  </script>
+</body>
+</html>
